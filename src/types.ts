@@ -14,8 +14,8 @@ export interface RawApiFacility {
   facilityInternalId: null;
   facilityName: RawApiField;
   facilityType: RawApiField;
-  proposedCommitmentAmount: RawApiField<number>;
-  closingCommitment: RawApiField<number>;
+  proposedCommitmentAmount: RawApiField<string | number>;
+  closingCommitment: RawApiField<string | number>;
   agreementDate: RawApiField;
   effectiveDate: RawApiField;
   expiryDate: RawApiField;
@@ -35,7 +35,7 @@ export interface RawApiDeal {
   processingAreaCode: RawApiField;
   classification: RawApiField;
   agreementDate: RawApiField;
-  globalDealProposedCommitmentAmount: RawApiField<number>;
+  globalDealProposedCommitmentAmount: RawApiField<string | number>;
   expenseCode: RawApiField;
   dealInternalId: null;
   dealTrackingNumber: string;

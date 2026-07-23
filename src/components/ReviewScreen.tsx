@@ -18,7 +18,7 @@ import {
   Send
 } from 'lucide-react';
 import { PdfViewer } from './PdfViewer';
-import { ExtractionData, DealAttribute, AttributeCategory, AttributeStatus, FacilityGroup, RawApiDeal } from '../types';
+import { ExtractionData, DealAttribute, AttributeCategory, AttributeStatus, FacilityGroup } from '../types';
 import { ACTUAL_DEAL_1_EXTRACTION_DATA } from '../data/actualDeal_1';
 import { mapRawApiToExtractionData } from '../data/mapApiResponse';
 
@@ -69,21 +69,22 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
     const fetchExtractedData = async () => {
       setIsLoading(true);
       try {
-        let apiUrl = `/workflow/${uuid}/extracted`;
-        if (window.location.hostname === 'localhost' && window.location.port === '8080') {
-          apiUrl = `http://localhost:8080/workflow/${uuid}/extracted`;
+        let apiUrl = `http://localhost:8081/api/workflow/${uuid}/metadata`;
+        if (window.location.hostname === 'localhost' && window.location.port === '3000') {
+          apiUrl = `http://localhost:8081/api/workflow/${uuid}/metadata`;
         }
 
         let res: Response;
         try {
           res = await fetch(apiUrl);
+          console.log("Result : " , res);
         } catch {
-          res = await fetch(`/workflow/${uuid}/extracted`);
+          res = await fetch(`http://localhost:8081/api/workflow/${uuid}/metadata`);
         }
 
         if (res.ok) {
-          const raw: RawApiDeal = await res.json();
-          const mapped = mapRawApiToExtractionData(raw, { uuid });
+          const rawPayload = await res.json();
+          const mapped = mapRawApiToExtractionData(rawPayload as Record<string, unknown>, { uuid });
           applyData(mapped);
         } else {
           // API error — use sample_1.json fallback
