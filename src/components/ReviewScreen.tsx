@@ -18,8 +18,9 @@ import {
   Send
 } from 'lucide-react';
 import { PdfViewer } from './PdfViewer';
-import { ExtractionData, DealAttribute, AttributeCategory, AttributeStatus, FacilityGroup } from '../types';
+import { ExtractionData, DealAttribute, AttributeCategory, AttributeStatus, FacilityGroup, RawApiDeal } from '../types';
 import { ACTUAL_DEAL_1_EXTRACTION_DATA } from '../data/actualDeal_1';
+import { mapRawApiToExtractionData } from '../data/mapApiResponse';
 
 interface ReviewScreenProps {
   uuid: string;
@@ -44,13 +45,24 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
   const [editingAttrId, setEditingAttrId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
 
-  // Accordion open/close state for facilities
-  const [openFacilities, setOpenFacilities] = useState<Record<string, boolean>>({
-    'Line of Credit': true
-  });
+  // Accordion open/close state for facilities (populated dynamically after data loads)
+  const [openFacilities, setOpenFacilities] = useState<Record<string, boolean>>({});
 
   // Is sign-off ready state
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Helper: apply extracted data (or fall back to sample_1.json data)
+  const applyData = (extracted: ExtractionData) => {
+    const hasAttrs = (extracted.attributes?.length ?? 0) > 0;
+    const source = hasAttrs ? extracted : ACTUAL_DEAL_1_EXTRACTION_DATA;
+    setData(source);
+    setAttributes(source.attributes);
+    setFacilities(source.facilities ?? []);
+    // Open all facility accordions by default
+    const openMap: Record<string, boolean> = {};
+    (source.facilities ?? []).forEach(f => { openMap[f.facilityName] = true; });
+    setOpenFacilities(openMap);
+  };
 
   // 1. Fetch JSON from API on page load
   useEffect(() => {
@@ -70,21 +82,16 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
         }
 
         if (res.ok) {
-          const json: ExtractionData = await res.json();
-          setData(json);
-          setAttributes(json.attributes || []);
-          setFacilities(json.facilities || []);
+          const raw: RawApiDeal = await res.json();
+          const mapped = mapRawApiToExtractionData(raw, { uuid });
+          applyData(mapped);
         } else {
-          // Fallback to actual deal data
-          setData(ACTUAL_DEAL_1_EXTRACTION_DATA);
-          setAttributes(ACTUAL_DEAL_1_EXTRACTION_DATA.attributes);
-          setFacilities(ACTUAL_DEAL_1_EXTRACTION_DATA.facilities || []);
+          // API error — use sample_1.json fallback
+          applyData(ACTUAL_DEAL_1_EXTRACTION_DATA);
         }
       } catch (e) {
         console.error('Error fetching extracted data:', e);
-        setData(ACTUAL_DEAL_1_EXTRACTION_DATA);
-        setAttributes(ACTUAL_DEAL_1_EXTRACTION_DATA.attributes);
-        setFacilities(ACTUAL_DEAL_1_EXTRACTION_DATA.facilities || []);
+        applyData(ACTUAL_DEAL_1_EXTRACTION_DATA);
       } finally {
         setIsLoading(false);
       }
@@ -206,13 +213,13 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
 
       const payload = {
         uuid,
-        fileName: data?.fileName || 'ABC_Manufacturing_Credit_Agreement_2025.pdf',
-        borrowerName: data?.borrowerName || 'ABC Manufacturing Ltd',
+        fileName: data?.fileName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.fileName,
+        borrowerName: data?.borrowerName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.borrowerName,
         attributes: jsonPairs,
-        Borrower: jsonPairs['Borrower'] || data?.borrowerName || 'ABC Manufacturing Ltd',
-        'Deal Name': jsonPairs['Deal Name'] || 'ABC Manufacturing Term Loan',
-        'Total Aggregate Amount': jsonPairs['Total Aggregate Amount'] || '$250,000,000 USD',
-        'Effective Date': jsonPairs['Effective Date'] || 'December 31, 2025'
+        Borrower: jsonPairs['Borrower'] ?? data?.borrowerName,
+        'Deal Name': jsonPairs['Deal Name'] ?? data?.fileName,
+        'Total Aggregate Amount': jsonPairs['Global Proposed Commitment Amount'] ?? jsonPairs['Total Aggregate Amount'],
+        'Effective Date': jsonPairs['Agreement Date'] ?? jsonPairs['Effective Date']
       };
 
       let res: Response;
@@ -238,20 +245,20 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
       }
     } catch (e) {
       console.error('Create deal error:', e);
-      // Fallback
+      // Fallback sign-off using actual loaded data
       onSignOffComplete({
         success: true,
-        dealId: `DEAL-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        dealId: `DEAL-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
         status: 'DEAL_CREATED',
         message: 'Deal creation done successfully!',
         deal: {
-          dealId: 'DEAL-2026-8942',
+          dealId: `DEAL-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
           uuid,
-          borrowerName: 'ABC Manufacturing Ltd',
-          dealName: 'ABC Manufacturing Term Loan',
-          fileName: 'ABC_Manufacturing_Credit_Agreement_2025.pdf',
-          effectiveDate: 'December 31, 2025',
-          totalAmount: '$250,000,000 USD',
+          borrowerName: data?.borrowerName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.borrowerName,
+          dealName: jsonPairs['Deal Name'] ?? data?.fileName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.fileName,
+          fileName: data?.fileName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.fileName,
+          effectiveDate: jsonPairs['Agreement Date'] ?? jsonPairs['Effective Date'] ?? 'N/A',
+          totalAmount: jsonPairs['Global Proposed Commitment Amount'] ?? jsonPairs['Total Aggregate Amount'] ?? 'N/A',
           createdAt: new Date().toLocaleString(),
           totalFields,
           approvedFields: approvedCount,

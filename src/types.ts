@@ -1,4 +1,62 @@
 export type AttributeCategory = 'GENERAL' | 'FINANCIAL' | 'DATES & RATES' | 'LEGAL & GOVERNANCE' | 'FACILITY';
+
+// ─── Raw API response types (shape returned by /workflow/:uuid/extracted) ────
+
+export interface RawApiField<T = string> {
+  value: T | null;
+  pageNumber: number | null;
+  confidence: number;
+  sourceText: string;
+}
+
+export interface RawApiFacility {
+  facilityRid: null;
+  facilityInternalId: null;
+  facilityName: RawApiField;
+  facilityType: RawApiField;
+  proposedCommitmentAmount: RawApiField<number>;
+  closingCommitment: RawApiField<number>;
+  agreementDate: RawApiField;
+  effectiveDate: RawApiField;
+  expiryDate: RawApiField;
+  finalMaturityDate: RawApiField;
+  globalNewAmount: null;
+  risk: { riskTypeCode: RawApiField };
+  loanPurpose: { loanPurposeCode: RawApiField };
+  facilityInterestPricingList: unknown[];
+  facilitySubLimit: unknown[];
+}
+
+export interface RawApiDeal {
+  dealName: RawApiField;
+  currency: RawApiField;
+  department: RawApiField;
+  branch: RawApiField;
+  processingAreaCode: RawApiField;
+  classification: RawApiField;
+  agreementDate: RawApiField;
+  globalDealProposedCommitmentAmount: RawApiField<number>;
+  expenseCode: RawApiField;
+  dealInternalId: null;
+  dealTrackingNumber: string;
+  administrativeAgent: {
+    customerExternalId: RawApiField;
+    dealAdminServicingGroup: {
+      profileType: RawApiField;
+    };
+  };
+  dealBorrower: {
+    customerExternalId: RawApiField;
+  };
+  borrowerIndicator: string;
+  isDistressed: string;
+  interestPricing: unknown[];
+  circleFinalStatusCode: string;
+  price: number;
+  facilities: RawApiFacility[];
+  tradeList: unknown[];
+  version: string;
+}
 export type AttributeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface DealAttribute {

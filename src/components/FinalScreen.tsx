@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { CreatedDealRecord } from '../types';
 import { MOCK_EXISTING_DEALS } from '../data/sampleDeal';
+import { DEFAULT_FILE_NAME, DEFAULT_DEAL_NAME, DEFAULT_AGREEMENT_DATE, DEFAULT_TOTAL_AMOUNT, ACTUAL_DEAL_1_EXTRACTION_DATA } from '../data/actualDeal_1';
 
 interface FinalScreenProps {
   dealResponse: any;
@@ -37,29 +38,22 @@ export const FinalScreen: React.FC<FinalScreenProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const currentDeal: CreatedDealRecord = dealResponse?.deal || {
-    dealId: dealResponse?.dealId || 'DEAL-2026-8942',
-    uuid: 'sample-uuid-2025-001',
-    borrowerName: 'ABC Manufacturing Ltd',
-    dealName: 'ABC Manufacturing Term Loan',
-    fileName: 'ABC_Manufacturing_Credit_Agreement_2025.pdf',
-    effectiveDate: 'December 31, 2025',
-    totalAmount: '$250,000,000 USD',
-    createdAt: dealResponse?.timestamp || '23/07/2026 at 17:33:44',
-    totalFields: 12,
-    approvedFields: 12,
+    dealId: dealResponse?.dealId || `DEAL-${new Date().getFullYear()}-0001`,
+    uuid: 'actual-deal-1-uuid-001',
+    borrowerName: ACTUAL_DEAL_1_EXTRACTION_DATA.borrowerName,
+    dealName: DEFAULT_DEAL_NAME,
+    fileName: DEFAULT_FILE_NAME,
+    effectiveDate: DEFAULT_AGREEMENT_DATE,
+    totalAmount: DEFAULT_TOTAL_AMOUNT,
+    createdAt: dealResponse?.timestamp || new Date().toLocaleString(),
+    totalFields: ACTUAL_DEAL_1_EXTRACTION_DATA.attributes.length + (ACTUAL_DEAL_1_EXTRACTION_DATA.facilities?.flatMap(f => f.attributes).length ?? 0),
+    approvedFields: 0,
     rejectedFields: 0,
-    pendingFields: 0,
+    pendingFields: ACTUAL_DEAL_1_EXTRACTION_DATA.attributes.length + (ACTUAL_DEAL_1_EXTRACTION_DATA.facilities?.flatMap(f => f.attributes).length ?? 0),
     status: 'SIGNED_OFF',
-    attributes: {
-      'Deal Name': 'ABC Manufacturing Term Loan',
-      'Borrower': 'ABC Manufacturing Ltd',
-      'Lender': 'XYZ Commercial Bank',
-      'Total Aggregate Amount': '$250,000,000 USD',
-      'Effective Date': 'December 31, 2025',
-      'Maturity Date': 'December 31, 2030',
-      'Interest Rate Benchmark': 'Term SOFR + 2.25%',
-      'Governing Law': 'State of Delaware'
-    }
+    attributes: Object.fromEntries(
+      ACTUAL_DEAL_1_EXTRACTION_DATA.attributes.map(a => [a.label, a.value])
+    ),
   };
 
   // Fetch all deals on page load via GET /workflow/deals
@@ -300,7 +294,7 @@ Signed Off: ${currentDeal.createdAt}`;
                         <div className="text-[11px] text-slate-500">{deal.dealName}</div>
                       </td>
                       <td className="px-4 py-3.5 font-bold text-slate-800">
-                        {deal.totalAmount || '$250,000,000 USD'}
+                        {deal.totalAmount || DEFAULT_TOTAL_AMOUNT}
                       </td>
                       <td className="px-4 py-3.5 text-slate-600 max-w-[180px] truncate">
                         {deal.fileName}

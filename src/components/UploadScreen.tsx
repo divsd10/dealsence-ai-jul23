@@ -11,6 +11,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import { UploadResponse, WorkflowStatusResponse } from '../types';
+import { DEFAULT_FILE_NAME } from '../data/actualDeal_1';
 
 interface UploadScreenProps {
   onWorkflowComplete: (uuid: string, fileData: { name: string; size: string }) => void;
@@ -102,7 +103,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
       } else {
         // Sample file dummy blob
         const sampleBlob = new Blob(['Sample Credit Agreement Content'], { type: 'application/pdf' });
-        formData.append('pdf', sampleBlob, 'ABC_Manufacturing_Credit_Agreement_2025.pdf');
+        formData.append('pdf', sampleBlob, DEFAULT_FILE_NAME);
       }
 
       // Try calling /workflow/upload (and fallback to origin if localhost fails)
@@ -168,8 +169,8 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
             setTimeout(() => {
               onWorkflowComplete(uuid, {
-                name: selectedFile ? selectedFile.name : 'ABC_Manufacturing_Credit_Agreement_2025.pdf',
-                size: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : '3.32 MB'
+                name: selectedFile ? selectedFile.name : DEFAULT_FILE_NAME,
+                size: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : 'N/A'
               });
             }, 800);
           }
@@ -196,13 +197,13 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
   const fileName = selectedFile
     ? selectedFile.name
     : sampleLoaded
-    ? 'ABC_Manufacturing_Credit_Agreement_2025.pdf'
+    ? DEFAULT_FILE_NAME
     : null;
 
   const fileSize = selectedFile
     ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`
     : sampleLoaded
-    ? '3.32 MB'
+    ? 'N/A'
     : null;
 
   return (

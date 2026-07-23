@@ -1,5 +1,6 @@
 import React from 'react';
 import { FileText, Sparkles, CheckCircle2, ArrowLeft, RefreshCw, PlusCircle } from 'lucide-react';
+import { DEFAULT_FILE_NAME, DEFAULT_DEAL_NAME, ACTUAL_DEAL_1_EXTRACTION_DATA } from '../data/actualDeal_1';
 
 interface HeaderProps {
   currentScreen: 'upload' | 'review' | 'final';
@@ -14,11 +15,11 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   currentScreen,
-  fileName = 'ABC_Manufacturing_Credit_Agreement_2025.pdf',
-  pageCount = 20,
-  borrowerName = 'ABC Manufacturing Ltd',
+  fileName = DEFAULT_FILE_NAME,
+  pageCount = ACTUAL_DEAL_1_EXTRACTION_DATA.pageCount,
+  borrowerName = ACTUAL_DEAL_1_EXTRACTION_DATA.borrowerName,
   reviewedCount = 0,
-  totalCount = 12,
+  totalCount = ACTUAL_DEAL_1_EXTRACTION_DATA.attributes.length,
   onNavigateUpload,
   onNavigateReview,
 }) => {
@@ -73,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Syndicated Term Loan Agreement • {borrowerName}
+                {ACTUAL_DEAL_1_EXTRACTION_DATA.documentType} • {borrowerName}
               </p>
             </div>
           </div>

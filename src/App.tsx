@@ -3,12 +3,13 @@ import { Header } from './components/Header';
 import { UploadScreen } from './components/UploadScreen';
 import { ReviewScreen } from './components/ReviewScreen';
 import { FinalScreen } from './components/FinalScreen';
+import { DEFAULT_FILE_NAME, ACTUAL_DEAL_1_EXTRACTION_DATA } from './data/actualDeal_1';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<'upload' | 'review' | 'final'>('upload');
-  const [workflowUuid, setWorkflowUuid] = useState<string>('sample-uuid-2025-001');
+  const [workflowUuid, setWorkflowUuid] = useState<string>('actual-deal-1-uuid-001');
   const [fileInfo, setFileInfo] = useState<{ name: string; size: string }>({
-    name: 'Credit_Agreement_Wells_Fargo_2011.pdf',
+    name: DEFAULT_FILE_NAME,
     size: 'N/A'
   });
   const [createDealResponse, setCreateDealResponse] = useState<any>(null);
@@ -30,8 +31,8 @@ export default function App() {
       <Header
         currentScreen={currentScreen}
         fileName={fileInfo.name}
-        borrowerName="Unknown Borrower"
-        pageCount={1}
+        borrowerName={ACTUAL_DEAL_1_EXTRACTION_DATA.borrowerName}
+        pageCount={ACTUAL_DEAL_1_EXTRACTION_DATA.pageCount}
         onNavigateUpload={() => setCurrentScreen('upload')}
         onNavigateReview={() => setCurrentScreen('review')}
       />
