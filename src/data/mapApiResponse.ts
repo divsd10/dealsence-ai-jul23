@@ -235,138 +235,120 @@ function guessCategory(key: string): AttributeCategory {
   return 'GENERAL';
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isRawFieldLike(value: unknown): value is { value: unknown; pageNumber?: number; confidence?: number; sourceText?: string } {
+  return isPlainObject(value) && 'value' in value && 'pageNumber' in value && 'confidence' in value && 'sourceText' in value;
+}
+
+function humanizeKey(key: string): string {
+  return key
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+function stringFromRawValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return JSON.stringify(value);
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function rawFieldToAttribute(field: { value: unknown; pageNumber?: number; confidence?: number; sourceText?: string }, path: string[]): DealAttribute | null {
+  if (field.value === null || field.value === undefined) return null;
+  const rawValue = stringFromRawValue(field.value);
+  const label = path.map(humanizeKey).join(' / ');
+  const leafKey = path[path.length - 1] ?? label;
+  return {
+    id: path.join('_').replace(/[^a-zA-Z0-9_]/g, '_'),
+    label,
+    value: rawValue,
+    originalValue: rawValue,
+    confidence: toPercent(typeof field.confidence === 'number' ? field.confidence : 1),
+    page: typeof field.pageNumber === 'number' ? field.pageNumber : 1,
+    excerpt: field.sourceText ? `"${field.sourceText}"` : '',
+    category: guessCategory(leafKey),
+    status: 'PENDING',
+  };
+}
+
+function collectRawAttributes(node: unknown, path: string[] = [], skipKeys = new Set<string>()): DealAttribute[] {
+  if (!node) return [];
+
+  if (isRawFieldLike(node)) {
+    const attr = rawFieldToAttribute(node, path);
+    return attr ? [attr] : [];
+  }
+
+  if (Array.isArray(node)) {
+    return node.flatMap((item, idx) => collectRawAttributes(item, [...path, String(idx)], skipKeys));
+  }
+
+  if (!isPlainObject(node)) return [];
+
+  return Object.entries(node).flatMap(([key, value]) => {
+    if (skipKeys.has(key)) return [];
+    return collectRawAttributes(value, [...path, key], skipKeys);
+  });
+}
+
+function facilityNameFromItem(item: Record<string, unknown>, fallback: string): string {
+  const nameField = item.facilityName;
+  if (isRawFieldLike(nameField) && nameField.value !== null && nameField.value !== undefined) {
+    return stringFromRawValue(nameField.value) || fallback;
+  }
+  return fallback;
+}
+
 export function mapRawApiToExtractionData(
   rawInput: RawApiDeal | Record<string, unknown>,
   overrides?: { uuid?: string; fileName?: string; fileSize?: string; pageCount?: number }
 ): ExtractionData {
-  // ─── Extract from raw API payload BEFORE normalization to catch all fields ────
   const rawPayload = (rawInput ?? {}) as Record<string, unknown>;
-  const dealPayload = rawPayload.deal && typeof rawPayload.deal === 'object'
-    ? (rawPayload.deal as Record<string, unknown>)
-    : rawPayload;
+  const dealPayload = rawPayload.deal && isPlainObject(rawPayload.deal) ? rawPayload.deal : rawPayload;
+  const facilityItems = Array.isArray(dealPayload.facilityList) ? dealPayload.facilityList : [];
 
-  const raw = normalizeRawApiDeal(rawInput);
-  const attrs: DealAttribute[] = [];
+  const topLevelSkip = new Set(['facilityList']);
+  const attributes = collectRawAttributes(dealPayload, [], topLevelSkip);
 
-  const add = (field: RawApiField<string | number> | undefined, id: string, label: string, category: AttributeCategory, display?: string) => {
-    if (!field) return;
-    const a = makeAttr(field as RawApiField<string | number>, id, label, category, display);
-    if (a) attrs.push(a);
-  };
+  const facilities: FacilityGroup[] = facilityItems.map((item, idx) => {
+    const fac = isPlainObject(item) ? item : {};
+    const facilityAttributes = collectRawAttributes(fac);
+    const facilityName = facilityNameFromItem(fac, `Facility ${idx + 1}`);
+    const facilityType = isRawFieldLike(fac.facilityType) ? stringFromRawValue(fac.facilityType.value) : 'N/A';
+    const amountField = isRawFieldLike(fac.proposedCommitmentAmount) ? stringFromRawValue(fac.proposedCommitmentAmount.value) : 'N/A';
+    const maturityField = isRawFieldLike(fac.finalMaturityDate) ? stringFromRawValue(fac.finalMaturityDate.value) : 'N/A';
 
-  // ─── Dynamically extract ALL raw deal-level fields (no hardcoding) ────
-  // Keys to skip: nested objects, arrays, internal metadata
-  const skipKeys = new Set([
-    'dealInternalId',
-    'facilities',
-    'facilityList',
-    'tradeList',
-    'administrativeAgent',
-    'dealAdminAgent',
-    'dealBorrower',
-    'interestPricing',
-    'interestPricingOptions',
-    'version',
-  ]);
-
-  // Iterate over ALL raw API deal payload keys and extract any field with .value
-  Object.entries(dealPayload).forEach(([key, field]) => {
-    if (skipKeys.has(key)) return;
-    if (!field || typeof field !== 'object' || !('value' in field)) return;
-
-    const unwrapped = asStringField(field);
-    const category = guessCategory(key);
-    const label = key
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, (c) => c.toUpperCase())
-      .trim();
-    const id = `deal_${key}`;
-
-    // NO formatting — show raw value as-is
-    add(unwrapped, id, label, category);
+    return {
+      facilityName,
+      facilityType,
+      amount: amountField || 'N/A',
+      interestMargin: 'N/A',
+      maturityDate: maturityField || 'N/A',
+      attributes: facilityAttributes,
+    };
   });
 
-  // ─── Extract nested fields from dealBorrower (e.g., customerExternalId) ────
-  const dealBorrowerObj = dealPayload.dealBorrower && typeof dealPayload.dealBorrower === 'object'
-    ? (dealPayload.dealBorrower as Record<string, unknown>)
-    : null;
-  if (dealBorrowerObj) {
-    Object.entries(dealBorrowerObj).forEach(([key, field]) => {
-      if (!field || typeof field !== 'object' || !('value' in field)) return;
-      const unwrapped = asStringField(field);
-      const label = `Borrower ${key.replace(/([A-Z])/g, ' $1').trim()}`;
-      const id = `borrower_${key}`;
-      add(unwrapped, id, label, 'GENERAL');
-    });
-  }
-
-  // ─── Extract nested fields from dealAdminAgent (e.g., dealAdminServicingGroup) ────
-  const dealAdminAgentObj = dealPayload.dealAdminAgent && typeof dealPayload.dealAdminAgent === 'object'
-    ? (dealPayload.dealAdminAgent as Record<string, unknown>)
-    : null;
-  if (dealAdminAgentObj) {
-    Object.entries(dealAdminAgentObj).forEach(([key, nested]) => {
-      if (!nested || typeof nested !== 'object') return;
-      const nestedObj = nested as Record<string, unknown>;
-      Object.entries(nestedObj).forEach(([subkey, field]) => {
-        if (!field || typeof field !== 'object' || !('value' in field)) return;
-        const unwrapped = asStringField(field);
-        const label = `Admin Agent ${key} ${subkey}`.replace(/([A-Z])/g, ' $1').trim();
-        const id = `admin_agent_${key}_${subkey}`;
-        add(unwrapped, id, label, 'GENERAL');
-      });
-    });
-  }
-
-  // ─── Extract interestPricingOptions array if present ────
-  const pricingOpts = Array.isArray(dealPayload.interestPricingOptions) ? dealPayload.interestPricingOptions : [];
-  pricingOpts.forEach((opt, idx) => {
-    if (opt && typeof opt === 'object') {
-      const optStr = JSON.stringify(opt);
-      attrs.push({
-        id: `interest_pricing_${idx}`,
-        label: `Interest Pricing Option ${idx + 1}`,
-        value: optStr,
-        originalValue: optStr,
-        confidence: 100,
-        page: 1,
-        excerpt: optStr,
-        category: 'FINANCIAL',
-        status: 'PENDING',
-      });
-    }
-  });
-
-  // Administrative Agent — parse name from sourceText
-  const agentField = raw.administrativeAgent?.dealAdminServicingGroup?.profileType;
-  if (agentField?.sourceText) {
-    const agentName = agentField.sourceText.split('(')[0].replace(/"/g, '').trim();
-    attrs.push({
-      id: 'administrative_agent',
-      label: 'Administrative Agent',
-      value: agentName,
-      originalValue: agentName,
-      confidence: toPercent(agentField.confidence),
-      page: agentField.pageNumber ?? 1,
-      excerpt: `"${agentField.sourceText}"`,
-      category: 'GENERAL',
-      status: 'PENDING',
-    });
-  }
-
-
-  const facilities = (raw.facilities || []).map(mapFacility);
+  const dealNameField = isRawFieldLike(dealPayload.dealName) ? stringFromRawValue(dealPayload.dealName.value) : 'Deal';
+  const borrowerField = isPlainObject(dealPayload.dealBorrower) && isRawFieldLike(dealPayload.dealBorrower.customerExternalId)
+    ? stringFromRawValue(dealPayload.dealBorrower.customerExternalId.value)
+    : 'N/A';
 
   return {
     uuid: overrides?.uuid ?? 'api-extracted-uuid',
-    fileName: overrides?.fileName ?? `${raw.dealName?.value ?? 'Deal'}.pdf`,
+    fileName: overrides?.fileName ?? `${dealNameField}.pdf`,
     fileSize: overrides?.fileSize ?? 'N/A',
     pageCount: overrides?.pageCount ?? 1,
     documentType: 'Credit Agreement',
-    borrowerName: raw.dealBorrower?.customerExternalId?.value ?? 'N/A',
+    borrowerName: borrowerField,
     kycApproved: false,
     extractedAt: new Date().toISOString(),
-    attributes: attrs,
+    attributes,
     facilities,
   };
 }

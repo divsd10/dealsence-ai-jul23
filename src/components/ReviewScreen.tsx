@@ -207,9 +207,9 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
     const jsonPairs = createNameValuePairJson();
 console.log('Sign-off JSON payload:', jsonPairs);
     try {
-      let createUrl = '/workflow/create/deal';
-      if (window.location.hostname === 'localhost' && window.location.port === '8080') {
-        createUrl = 'http://localhost:8080/workflow/create/deal';
+      let createUrl = '/api/deals/create';
+      if (window.location.hostname === 'localhost' && window.location.port === '3000') {
+        createUrl = 'http://localhost:8081/api/deals/create';
       }
 
       const payload = {
