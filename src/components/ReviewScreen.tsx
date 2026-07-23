@@ -204,7 +204,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
   const handleSignOffAndCreate = async () => {
     setIsSubmitting(true);
     const jsonPairs = createNameValuePairJson();
-
+console.log('Sign-off JSON payload:', jsonPairs);
     try {
       let createUrl = '/workflow/create/deal';
       if (window.location.hostname === 'localhost' && window.location.port === '8080') {
