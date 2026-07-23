@@ -103,7 +103,7 @@ export interface ExtractionData {
 
 export interface WorkflowStatusResponse {
   uuid: string;
-  status: 'UPLOADING' | 'PROCESSING' | 'HUMAN APPROVED';
+  status: 'UPLOADING' | 'PROCESSING' | 'HUMAN APPROVED' | 'COMPLETED';
   step: number;
   totalSteps: number;
   message: string;

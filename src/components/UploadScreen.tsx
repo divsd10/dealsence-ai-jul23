@@ -11,7 +11,6 @@ import {
   FileCheck
 } from 'lucide-react';
 import { UploadResponse, WorkflowStatusResponse } from '../types';
-import { DEFAULT_FILE_NAME } from '../data/actualDeal_1';
 
 interface UploadScreenProps {
   onWorkflowComplete: (uuid: string, fileData: { name: string; size: string }) => void;
@@ -88,27 +87,27 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
     setUploadError(null);
 
     // Generate uuid client-side
-    const uuid = typeof crypto !== 'undefined' && crypto.randomUUID 
-      ? crypto.randomUUID() 
-      : `uuid-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-    const userName = 'john.doe@dealsense.ai';
+    const uuid = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `uuid-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    const userName = 'ops.user1@dealsense.ai';
 
     try {
       const formData = new FormData();
       formData.append('uuid', uuid);
-      formData.append('userName', userName);
+      formData.append('username', userName);
 
       if (selectedFile) {
-        formData.append('pdf', selectedFile);
+        formData.append('file', selectedFile);
       } else {
         // Sample file dummy blob
         const sampleBlob = new Blob(['Sample Credit Agreement Content'], { type: 'application/pdf' });
-        formData.append('pdf', sampleBlob, DEFAULT_FILE_NAME);
+        formData.append('file', sampleBlob, 'ABC_Manufacturing_Credit_Agreement_2025.pdf');
       }
 
       // Try calling /workflow/upload (and fallback to origin if localhost fails)
       let uploadUrl = '/workflow/upload';
-      if (window.location.hostname === 'localhost' && window.location.port === '8080') {
+      if (window.location.hostname === 'localhost' && window.location.port === '3000') {
         uploadUrl = 'http://localhost:8080/workflow/upload';
       }
 
@@ -130,8 +129,8 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
         throw new Error(`Upload failed with status ${response.status}`);
       }
 
-      const uploadData: UploadResponse = await response.json();
-      const activeUuid = uploadData.uuid || uuid;
+      //const uploadData: UploadResponse = await response.json();
+      const activeUuid = uuid;
       setWorkflowUuid(activeUuid);
 
       // Start status polling
@@ -149,8 +148,8 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
     const fetchStatus = async () => {
       try {
         let statusUrl = `/workflow/${uuid}/status`;
-        if (window.location.hostname === 'localhost' && window.location.port === '8080') {
-          statusUrl = `http://localhost:8080/workflow/${uuid}/status`;
+        if (window.location.hostname === 'localhost' && window.location.port === '3000') {
+          statusUrl = `http://localhost:8081/api/workflow/${uuid}/status`;
         }
 
         let res: Response;
@@ -161,16 +160,36 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
         }
 
         if (res.ok) {
-          const statusData: WorkflowStatusResponse = await res.json();
-          setCurrentStepInfo(statusData);
+          const rawStatus = await res.json() as {
+            data?: {
+              workflowId?: string;
+              status?: string;
+              username?: string;
+              updatedAt?: string;
+            };
+          } & Partial<WorkflowStatusResponse>;
 
-          // Once status returns "HUMAN APPROVED", proceed to Review screen!
-          if (statusData.status === 'HUMAN APPROVED') {
+          // Normalize both legacy flat responses and nested `{ data: ... }` responses.
+          const normalizedStatus: WorkflowStatusResponse = {
+            uuid: rawStatus.uuid || rawStatus.data?.workflowId || uuid,
+            status: (rawStatus.data?.status || rawStatus.status || 'PROCESSING') as WorkflowStatusResponse['status'],
+            step: rawStatus.step ?? (rawStatus.data?.status === 'COMPLETED' ? 6 : 1),
+            totalSteps: rawStatus.totalSteps ?? 6,
+            message: rawStatus.message || rawStatus.data?.status || 'Processing workflow...',
+            percentage: rawStatus.percentage ?? (rawStatus.data?.status === 'COMPLETED' ? 100 : 15),
+            userName: rawStatus.userName || rawStatus.data?.username,
+            updatedAt: rawStatus.updatedAt || rawStatus.data?.updatedAt,
+          };
+
+          setCurrentStepInfo(normalizedStatus);
+
+          // Proceed when workflow reaches a terminal approval/completed state.
+          if (normalizedStatus.status === 'COMPLETED' || normalizedStatus.status === 'HUMAN APPROVED') {
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
             setTimeout(() => {
               onWorkflowComplete(uuid, {
-                name: selectedFile ? selectedFile.name : DEFAULT_FILE_NAME,
-                size: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : 'N/A'
+                name: selectedFile ? selectedFile.name : 'ABC_Manufacturing_Credit_Agreement_2025.pdf',
+                size: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : '3.32 MB'
               });
             }, 800);
           }
@@ -195,94 +214,165 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
   }, []);
 
   const fileName = selectedFile
-    ? selectedFile.name
-    : sampleLoaded
-    ? DEFAULT_FILE_NAME
-    : null;
+      ? selectedFile.name
+      : sampleLoaded
+          ? 'ABC_Manufacturing_Credit_Agreement_2025.pdf'
+          : null;
 
   const fileSize = selectedFile
-    ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`
-    : sampleLoaded
-    ? 'N/A'
-    : null;
+      ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`
+      : sampleLoaded
+          ? '3.32 MB'
+          : null;
 
   return (
-    <div className="min-h-[calc(100vh-57px)] bg-[#f8fafc] grid-background flex flex-col justify-between p-6 md:p-10">
-      <div className="max-w-3xl mx-auto w-full space-y-6 my-auto">
-        {/* Top Badge */}
-        <div className="text-center">
+      <div className="min-h-[calc(100vh-57px)] bg-[#f8fafc] grid-background flex flex-col justify-between p-6 md:p-10">
+        <div className="max-w-3xl mx-auto w-full space-y-6 my-auto">
+          {/* Top Badge */}
+          <div className="text-center">
           <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold shadow-2xs">
             <Sparkles className="w-3.5 h-3.5 text-blue-600" />
             DealSense AI • Intelligent Extraction Engine
           </span>
-        </div>
+          </div>
 
-        {/* Main Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-8 space-y-6">
-          {!isUploading ? (
-            <>
-              {/* Drag & Drop Area */}
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-                  isDragging
-                    ? 'border-blue-500 bg-blue-50/50 scale-[1.01]'
-                    : 'border-blue-300 hover:border-blue-500 hover:bg-slate-50/60'
-                }`}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept=".pdf,application/pdf"
-                  className="hidden"
-                />
+          {/* Main Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-8 space-y-6">
+            {!isUploading ? (
+                <>
+                  {/* Drag & Drop Area */}
+                  <div
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
+                          isDragging
+                              ? 'border-blue-500 bg-blue-50/50 scale-[1.01]'
+                              : 'border-blue-300 hover:border-blue-500 hover:bg-slate-50/60'
+                      }`}
+                      onClick={() => fileInputRef.current?.click()}
+                  >
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept=".pdf,application/pdf"
+                        className="hidden"
+                    />
 
-                <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
-                  <Upload className="w-8 h-8" />
-                </div>
+                    <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
+                      <Upload className="w-8 h-8" />
+                    </div>
 
-                <h3 className="text-lg font-bold text-slate-800">
-                  Drag & Drop your document here
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 mb-4">
-                  Supports PDF documents up to 50MB
-                </p>
+                    <h3 className="text-lg font-bold text-slate-800">
+                      Drag & Drop your document here
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 mb-4">
+                      Supports PDF documents up to 50MB
+                    </p>
 
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
-                  className="px-5 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-xs transition-colors"
-                >
-                  Browse Files
-                </button>
-              </div>
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fileInputRef.current?.click();
+                        }}
+                        className="px-5 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-xs transition-colors"
+                    >
+                      Browse Files
+                    </button>
+                  </div>
 
-              {/* Selected Document Box */}
-              <div className="bg-slate-50/80 rounded-xl p-4 border border-slate-200">
-                <div className="flex items-center justify-between mb-3">
+                  {/* Selected Document Box */}
+                  <div className="bg-slate-50/80 rounded-xl p-4 border border-slate-200">
+                    <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] font-bold text-slate-500 tracking-wider uppercase">
                     SELECTED DOCUMENT
                   </span>
-                  {fileName && (
-                    <button
-                      onClick={handleRemoveDocument}
-                      className="text-xs text-rose-600 hover:text-rose-700 font-medium flex items-center gap-1"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      Remove Document
-                    </button>
-                  )}
-                </div>
+                      {fileName && (
+                          <button
+                              onClick={handleRemoveDocument}
+                              className="text-xs text-rose-600 hover:text-rose-700 font-medium flex items-center gap-1"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            Remove Document
+                          </button>
+                      )}
+                    </div>
 
-                {fileName ? (
-                  <div className="bg-white rounded-lg p-3.5 border border-slate-200 shadow-xs flex items-center justify-between">
+                    {fileName ? (
+                        <div className="bg-white rounded-lg p-3.5 border border-slate-200 shadow-xs flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center">
+                              <FileText className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-800 text-sm">{fileName}</span>
+                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded">
+                            READY
+                          </span>
+                              </div>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {fileSize} • 20 Pages • Syndicated Term Loan
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                              onClick={handleRemoveDocument}
+                              className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                    ) : (
+                        <div className="text-center py-4 border border-dashed border-slate-200 rounded-lg bg-white">
+                          <p className="text-xs text-slate-500 mb-2">No document selected</p>
+                          <button
+                              type="button"
+                              onClick={handleLoadSample}
+                              className="px-4 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                          >
+                            <FileCheck className="w-4 h-4" />
+                            Load Sample Credit Agreement
+                          </button>
+                        </div>
+                    )}
+                  </div>
+
+                  {uploadError && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-medium">
+                        {uploadError}
+                      </div>
+                  )}
+
+                  {/* Analyze Button */}
+                  <button
+                      type="button"
+                      onClick={handleStartAnalysis}
+                      disabled={!fileName}
+                      className={`w-full py-3.5 px-6 rounded-xl text-white font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
+                          fileName
+                              ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer shadow-blue-600/20'
+                              : 'bg-slate-300 cursor-not-allowed text-slate-500'
+                      }`}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Analyze and Retrieve Deal Attributes →
+                  </button>
+
+                  {/* Security Footer */}
+                  <div className="flex items-center justify-center gap-2 text-xs text-slate-500 pt-2 border-t border-slate-100">
+                    <ShieldCheck className="w-4 h-4 text-slate-400" />
+                    Bank-grade 256-bit SSL encryption. All extraction data stays strictly confidential.
+                  </div>
+                </>
+            ) : (
+                /* Loading Screen with Step Progress */
+                <div className="space-y-6 py-4">
+                  {/* File details card */}
+                  <div className="bg-slate-50/90 rounded-xl p-4 border border-slate-200 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center">
                         <FileText className="w-5 h-5" />
@@ -291,164 +381,93 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-slate-800 text-sm">{fileName}</span>
                           <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded">
-                            READY
-                          </span>
+                        READY
+                      </span>
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5">
                           {fileSize} • 20 Pages • Syndicated Term Loan
                         </p>
                       </div>
                     </div>
-
-                    <button
-                      onClick={handleRemoveDocument}
-                      className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
                   </div>
-                ) : (
-                  <div className="text-center py-4 border border-dashed border-slate-200 rounded-lg bg-white">
-                    <p className="text-xs text-slate-500 mb-2">No document selected</p>
-                    <button
-                      type="button"
-                      onClick={handleLoadSample}
-                      className="px-4 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
-                    >
-                      <FileCheck className="w-4 h-4" />
-                      Load Sample Credit Agreement
-                    </button>
-                  </div>
-                )}
-              </div>
 
-              {uploadError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-medium">
-                  {uploadError}
-                </div>
-              )}
-
-              {/* Analyze Button */}
-              <button
-                type="button"
-                onClick={handleStartAnalysis}
-                disabled={!fileName}
-                className={`w-full py-3.5 px-6 rounded-xl text-white font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
-                  fileName
-                    ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer shadow-blue-600/20'
-                    : 'bg-slate-300 cursor-not-allowed text-slate-500'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                Analyze and Retrieve Deal Attributes →
-              </button>
-
-              {/* Security Footer */}
-              <div className="flex items-center justify-center gap-2 text-xs text-slate-500 pt-2 border-t border-slate-100">
-                <ShieldCheck className="w-4 h-4 text-slate-400" />
-                Bank-grade 256-bit SSL encryption. All extraction data stays strictly confidential.
-              </div>
-            </>
-          ) : (
-            /* Loading Screen with Step Progress */
-            <div className="space-y-6 py-4">
-              {/* File details card */}
-              <div className="bg-slate-50/90 rounded-xl p-4 border border-slate-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-800 text-sm">{fileName}</span>
-                      <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded">
-                        READY
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {fileSize} • 20 Pages • Syndicated Term Loan
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Loading progress box */}
-              <div className="bg-blue-50/60 rounded-xl p-6 border border-blue-200/80 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                    <span className="font-semibold text-slate-800 text-sm">
+                  {/* Loading progress box */}
+                  <div className="bg-blue-50/60 rounded-xl p-6 border border-blue-200/80 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                        <span className="font-semibold text-slate-800 text-sm">
                       {currentStepInfo?.message || 'Initiating intelligent PDF processing...'}
                     </span>
-                  </div>
-                  <span className="text-xs font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200">
+                      </div>
+                      <span className="text-xs font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200">
                     Step {currentStepInfo?.step || 1} of {currentStepInfo?.totalSteps || 6}
                   </span>
-                </div>
+                    </div>
 
-                {/* Progress Bar */}
-                <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden border border-slate-300">
-                  <div
-                    className="bg-blue-600 h-full transition-all duration-700 ease-out"
-                    style={{ width: `${currentStepInfo?.percentage || 15}%` }}
-                  ></div>
-                </div>
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden border border-slate-300">
+                      <div
+                          className="bg-blue-600 h-full transition-all duration-700 ease-out"
+                          style={{ width: `${currentStepInfo?.percentage || 15}%` }}
+                      ></div>
+                    </div>
 
-                <div className="flex justify-between items-center text-[11px] text-slate-500">
-                  <span>Polling status every 10 seconds via <code className="bg-slate-100 px-1 py-0.5 rounded text-blue-600 font-mono">/workflow/{workflowUuid?.substring(0, 8)}/status</code></span>
-                  <span className="font-semibold text-blue-600">
+                    <div className="flex justify-between items-center text-[11px] text-slate-500">
+                      <span>Polling status every 10 seconds via <code className="bg-slate-100 px-1 py-0.5 rounded text-blue-600 font-mono">/workflow/{workflowUuid?.substring(0, 8)}/status</code></span>
+                      <span className="font-semibold text-blue-600">
                     {currentStepInfo?.status === 'HUMAN APPROVED' ? '✓ HUMAN APPROVED' : `${currentStepInfo?.percentage || 15}% Complete`}
                   </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2 text-xs text-slate-500 pt-2 border-t border-slate-100">
+                    <ShieldCheck className="w-4 h-4 text-slate-400" />
+                    Bank-grade 256-bit SSL encryption. All extraction data stays strictly confidential.
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex items-center justify-center gap-2 text-xs text-slate-500 pt-2 border-t border-slate-100">
-                <ShieldCheck className="w-4 h-4 text-slate-400" />
-                Bank-grade 256-bit SSL encryption. All extraction data stays strictly confidential.
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Feature Highlights Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
-              <Zap className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-slate-800 text-xs">Precision Extraction</h4>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Automated parsing of complex credit facilities, covenants, and rates.
-              </p>
-            </div>
+            )}
           </div>
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
-              <CheckCircle2 className="w-5 h-5" />
+          {/* Feature Highlights Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-800 text-xs">Precision Extraction</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Automated parsing of complex credit facilities, covenants, and rates.
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-bold text-slate-800 text-xs">Highlight Sync</h4>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Click any attribute card to instantly highlight and scroll to its PDF source.
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-amber-50 text-amber-600">
-              <ShieldCheck className="w-5 h-5" />
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-800 text-xs">Highlight Sync</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Click any attribute card to instantly highlight and scroll to its PDF source.
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-bold text-slate-800 text-xs">Institutional Audit</h4>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                One-click bulk approval, audit logging, and exportable deal memos.
-              </p>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-amber-50 text-amber-600">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-800 text-xs">Institutional Audit</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  One-click bulk approval, audit logging, and exportable deal memos.
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
   );
 };
