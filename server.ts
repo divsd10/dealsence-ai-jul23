@@ -190,6 +190,64 @@ app.get('/workflow/data/:uuid', handleExtracted);
 app.get('/api/workflow/:uuid/extracted', handleExtracted);
 
 // 4. POST /workflow/create/deal (and /api/workflow/create/deal)
+const FACILITY_PREFIX = /^Facilities\s*\/\s*(\d+)\s*\/\s*(.+)$/i;
+
+function normalizeStructuredValues(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(normalizeStructuredValues);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, normalizeStructuredValues(nestedValue)])
+    );
+  }
+
+  return value === null || value === undefined ? '' : String(value);
+}
+
+function splitCreateDealAttributes(attributes: Record<string, unknown>) {
+  if (Array.isArray(attributes.facilityList)) {
+    const topLevelAttributes = Object.fromEntries(
+      Object.entries(attributes)
+        .filter(([key]) => key !== 'facilityList')
+        .map(([key, value]) => [key, value === null || value === undefined ? '' : String(value)])
+    );
+
+    const facilityList = attributes.facilityList.map((facility) => {
+      if (!facility || typeof facility !== 'object' || Array.isArray(facility)) return {};
+      return normalizeStructuredValues(facility) as Record<string, unknown>;
+    });
+
+    return { topLevelAttributes, facilityList };
+  }
+
+  const topLevelAttributes: Record<string, string> = {}
+  const facilityMap: Record<number, Record<string, string>> = {};
+
+  Object.entries(attributes).forEach(([key, value]) => {
+    const stringValue = value === null || value === undefined ? '' : String(value);
+    const match = key.match(FACILITY_PREFIX);
+
+    if (match) {
+      const facilityIndex = Number(match[1]);
+      const facilityField = match[2].trim();
+      if (!facilityMap[facilityIndex]) facilityMap[facilityIndex] = {};
+      facilityMap[facilityIndex][facilityField] = stringValue;
+      return;
+    }
+
+    topLevelAttributes[key] = stringValue;
+  });
+
+  const facilityList = Object.keys(facilityMap)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((idx) => facilityMap[idx]);
+
+  return { topLevelAttributes, facilityList };
+}
+
 const handleCreateDeal = (req: express.Request, res: express.Response) => {
   try {
     const payload = req.body || {};
@@ -200,6 +258,8 @@ const handleCreateDeal = (req: express.Request, res: express.Response) => {
     const totalAmount = payload['Total Aggregate Amount'] || payload['facility_amount'] || '$250,000,000 USD';
     const effectiveDate = payload['Effective Date'] || payload['effective_date'] || 'December 31, 2025';
     const fileName = payload.fileName || 'ABC_Manufacturing_Credit_Agreement_2025.pdf';
+    const rawAttributes = typeof payload.attributes === 'object' && payload.attributes !== null ? payload.attributes : {};
+    const { topLevelAttributes, facilityList } = splitCreateDealAttributes(rawAttributes);
 
     const now = new Date();
     const timestampStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} at ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
@@ -213,12 +273,13 @@ const handleCreateDeal = (req: express.Request, res: express.Response) => {
       effectiveDate,
       totalAmount,
       createdAt: timestampStr,
-      totalFields: Object.keys(payload.attributes || payload).length || 12,
-      approvedFields: Object.keys(payload.attributes || payload).length || 12,
+      totalFields: Object.keys(topLevelAttributes).length + facilityList.reduce((sum, item) => sum + Object.keys(item).length, 0) || 12,
+      approvedFields: Object.keys(topLevelAttributes).length + facilityList.reduce((sum, item) => sum + Object.keys(item).length, 0) || 12,
       rejectedFields: 0,
       pendingFields: 0,
       status: 'SIGNED_OFF',
-      attributes: typeof payload.attributes === 'object' ? payload.attributes : payload
+      attributes: topLevelAttributes,
+      facilityList
     };
 
     createdDealsStore.unshift(newDealRecord);

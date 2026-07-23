@@ -135,6 +135,7 @@ export interface CreatedDealRecord {
   pendingFields: number;
   status: 'SIGNED_OFF' | 'ACTIVE' | 'UNDER_REVIEW';
   attributes: Record<string, string>;
+  facilityList?: Array<Record<string, unknown>>;
 }
 
 export interface UploadResponse {

@@ -192,12 +192,37 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
   const pendingCount = allFieldsList.filter((a) => a.status === 'PENDING').length;
   const totalFields = allFieldsList.length;
 
-  // Create JSON name-value pairs
-  const createNameValuePairJson = () => {
-    const jsonResult: Record<string, string> = {};
-    allFieldsList.forEach((attr) => {
-      jsonResult[attr.label] = attr.value;
+  const assignNestedValue = (target: Record<string, any>, path: string[], value: string) => {
+    if (path.length === 0) return;
+
+    let current: Record<string, any> = target;
+    path.forEach((segment, index) => {
+      const isLeaf = index === path.length - 1;
+      if (isLeaf) {
+        current[segment] = value;
+        return;
+      }
+
+      if (!current[segment] || typeof current[segment] !== 'object' || Array.isArray(current[segment])) {
+        current[segment] = {};
+      }
+      current = current[segment];
     });
+  };
+
+  const buildObjectFromAttributes = (items: DealAttribute[]) => {
+    const result: Record<string, any> = {};
+    items.forEach((attr) => {
+      const path = attr.id.split('_').filter(Boolean);
+      assignNestedValue(result, path, attr.value);
+    });
+    return result;
+  };
+
+  // Create JSON in API-like structure, but only with key/value pairs.
+  const createNameValuePairJson = () => {
+    const jsonResult = buildObjectFromAttributes(attributes);
+    jsonResult.facilityList = facilities.map((facility) => buildObjectFromAttributes(facility.attributes));
     return jsonResult;
   };
 
@@ -217,10 +242,10 @@ console.log('Sign-off JSON payload:', jsonPairs);
         fileName: data?.fileName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.fileName,
         borrowerName: data?.borrowerName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.borrowerName,
         attributes: jsonPairs,
-        Borrower: jsonPairs['Borrower'] ?? data?.borrowerName,
-        'Deal Name': jsonPairs['Deal Name'] ?? data?.fileName,
-        'Total Aggregate Amount': jsonPairs['Global Proposed Commitment Amount'] ?? jsonPairs['Total Aggregate Amount'],
-        'Effective Date': jsonPairs['Agreement Date'] ?? jsonPairs['Effective Date']
+        Borrower: jsonPairs.dealBorrower?.customerExternalId ?? data?.borrowerName,
+        'Deal Name': jsonPairs.dealName ?? data?.fileName,
+        'Total Aggregate Amount': jsonPairs.globalDealProposedCommitmentAmount ?? jsonPairs.totalAggregateAmount,
+        'Effective Date': jsonPairs.agreementDate ?? jsonPairs.effectiveDate
       };
 
       let res: Response;
@@ -256,17 +281,20 @@ console.log('Sign-off JSON payload:', jsonPairs);
           dealId: `DEAL-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
           uuid,
           borrowerName: data?.borrowerName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.borrowerName,
-          dealName: jsonPairs['Deal Name'] ?? data?.fileName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.fileName,
+          dealName: jsonPairs.dealName ?? data?.fileName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.fileName,
           fileName: data?.fileName ?? ACTUAL_DEAL_1_EXTRACTION_DATA.fileName,
-          effectiveDate: jsonPairs['Agreement Date'] ?? jsonPairs['Effective Date'] ?? 'N/A',
-          totalAmount: jsonPairs['Global Proposed Commitment Amount'] ?? jsonPairs['Total Aggregate Amount'] ?? 'N/A',
+          effectiveDate: jsonPairs.agreementDate ?? jsonPairs.effectiveDate ?? 'N/A',
+          totalAmount: jsonPairs.globalDealProposedCommitmentAmount ?? jsonPairs.totalAggregateAmount ?? 'N/A',
           createdAt: new Date().toLocaleString(),
           totalFields,
           approvedFields: approvedCount,
           rejectedFields: rejectedCount,
           pendingFields: pendingCount,
           status: 'SIGNED_OFF',
-          attributes: jsonPairs
+          attributes: Object.fromEntries(
+            Object.entries(jsonPairs).filter(([key]) => key !== 'facilityList') as Array<[string, string]>
+          ),
+          facilityList: Array.isArray(jsonPairs.facilityList) ? jsonPairs.facilityList : []
         }
       });
     } finally {
