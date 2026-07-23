@@ -1,0 +1,327 @@
+import React, { useState, useEffect } from 'react';
+import {
+  CheckCircle2,
+  Copy,
+  Download,
+  FileSpreadsheet,
+  FileCode,
+  Sparkles,
+  Building,
+  Calendar,
+  FileText,
+  Search,
+  ArrowRight,
+  ShieldCheck,
+  RefreshCw,
+  PlusCircle,
+  Clock,
+  Loader2
+} from 'lucide-react';
+import { CreatedDealRecord } from '../types';
+import { MOCK_EXISTING_DEALS } from '../data/sampleDeal';
+
+interface FinalScreenProps {
+  dealResponse: any;
+  onNavigateUpload: () => void;
+  onNavigateReview: () => void;
+}
+
+export const FinalScreen: React.FC<FinalScreenProps> = ({
+  dealResponse,
+  onNavigateUpload,
+  onNavigateReview,
+}) => {
+  const [dealsList, setDealsList] = useState<CreatedDealRecord[]>([]);
+  const [isLoadingDeals, setIsLoadingDeals] = useState<boolean>(true);
+  const [copiedSummary, setCopiedSummary] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const currentDeal: CreatedDealRecord = dealResponse?.deal || {
+    dealId: dealResponse?.dealId || 'DEAL-2026-8942',
+    uuid: 'sample-uuid-2025-001',
+    borrowerName: 'ABC Manufacturing Ltd',
+    dealName: 'ABC Manufacturing Term Loan',
+    fileName: 'ABC_Manufacturing_Credit_Agreement_2025.pdf',
+    effectiveDate: 'December 31, 2025',
+    totalAmount: '$250,000,000 USD',
+    createdAt: dealResponse?.timestamp || '23/07/2026 at 17:33:44',
+    totalFields: 12,
+    approvedFields: 12,
+    rejectedFields: 0,
+    pendingFields: 0,
+    status: 'SIGNED_OFF',
+    attributes: {
+      'Deal Name': 'ABC Manufacturing Term Loan',
+      'Borrower': 'ABC Manufacturing Ltd',
+      'Lender': 'XYZ Commercial Bank',
+      'Total Aggregate Amount': '$250,000,000 USD',
+      'Effective Date': 'December 31, 2025',
+      'Maturity Date': 'December 31, 2030',
+      'Interest Rate Benchmark': 'Term SOFR + 2.25%',
+      'Governing Law': 'State of Delaware'
+    }
+  };
+
+  // Fetch all deals on page load via GET /workflow/deals
+  useEffect(() => {
+    const fetchAllDeals = async () => {
+      setIsLoadingDeals(true);
+      try {
+        let apiUrl = '/workflow/deals';
+        if (window.location.hostname === 'localhost' && window.location.port === '8080') {
+          apiUrl = 'http://localhost:8080/workflow/deals';
+        }
+
+        let res: Response;
+        try {
+          res = await fetch(apiUrl);
+        } catch {
+          res = await fetch('/workflow/deals');
+        }
+
+        if (res.ok) {
+          const json = await res.json();
+          setDealsList(json.deals || MOCK_EXISTING_DEALS);
+        } else {
+          setDealsList([currentDeal, ...MOCK_EXISTING_DEALS]);
+        }
+      } catch (e) {
+        console.error('Error fetching deals list:', e);
+        setDealsList([currentDeal, ...MOCK_EXISTING_DEALS]);
+      } finally {
+        setIsLoadingDeals(false);
+      }
+    };
+
+    fetchAllDeals();
+  }, []);
+
+  const handleCopySummary = () => {
+    const text = `DEAL CREATION SUMMARY
+Deal ID: ${currentDeal.dealId}
+Borrower: ${currentDeal.borrowerName}
+Deal Name: ${currentDeal.dealName}
+File: ${currentDeal.fileName}
+Effective Date: ${currentDeal.effectiveDate}
+Status: ${currentDeal.status}
+Signed Off: ${currentDeal.createdAt}`;
+
+    navigator.clipboard.writeText(text);
+    setCopiedSummary(true);
+    setTimeout(() => setCopiedSummary(false), 2000);
+  };
+
+  const handleExportCsv = () => {
+    const rows = [
+      ['Attribute', 'Value'],
+      ...Object.entries(currentDeal.attributes || {})
+    ];
+    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map((e) => e.join(',')).join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `${currentDeal.dealId}_deal_memo.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportJson = () => {
+    const jsonStr = JSON.stringify(currentDeal, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentDeal.dealId}_attributes.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const filteredDeals = dealsList.filter((d) => {
+    return (
+      d.borrowerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.dealId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.dealName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
+
+  return (
+    <div className="min-h-[calc(100vh-57px)] bg-[#f8fafc] grid-background p-6 md:p-10">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Deal Creation Confirmation Banner Card */}
+        <div className="bg-white rounded-2xl border border-emerald-200 shadow-xl p-8 space-y-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-emerald-500"></div>
+
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+            <div className="space-y-3 max-w-2xl">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                Deal Creation Successful • {currentDeal.dealId}
+              </span>
+
+              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Deal creation done successfully!
+              </h1>
+
+              <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
+                All deal attributes have been parsed, validated, and recorded. The structured credit agreement
+                metadata is now ready for risk analysis, loan syndication, and compliance tracking.
+              </p>
+
+              {/* Tag Badges */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                <div className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-800 font-semibold">
+                  <Building className="w-3.5 h-3.5 text-blue-600" />
+                  Borrower: <span className="font-bold">{currentDeal.borrowerName}</span>
+                </div>
+                <div className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-800 font-semibold">
+                  <FileText className="w-3.5 h-3.5 text-rose-600" />
+                  File: <span className="font-bold">{currentDeal.fileName}</span>
+                </div>
+                <div className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-800 font-semibold">
+                  <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                  Effective Date: <span className="font-bold">{currentDeal.effectiveDate}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Matrix */}
+            <div className="grid grid-cols-2 gap-3 w-full lg:w-auto min-w-[260px]">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Fields</div>
+                <div className="text-2xl font-black text-slate-900 mt-1">{currentDeal.totalFields}</div>
+              </div>
+
+              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Approved</div>
+                <div className="text-2xl font-black text-emerald-700 mt-1">{currentDeal.approvedFields}</div>
+              </div>
+
+              <div className="bg-rose-50 p-4 rounded-xl border border-rose-200 text-center">
+                <div className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">Rejected</div>
+                <div className="text-2xl font-black text-rose-700 mt-1">{currentDeal.rejectedFields}</div>
+              </div>
+
+              <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-center">
+                <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Pending</div>
+                <div className="text-2xl font-black text-amber-700 mt-1">{currentDeal.pendingFields}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Verification Audit & Action Buttons Bar */}
+          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs">
+            <div className="flex items-center gap-2 text-slate-600 font-medium">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Verified and signed off on <strong className="text-slate-900">{currentDeal.createdAt}</strong></span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleCopySummary}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                {copiedSummary ? 'Copied!' : 'Copy Text Summary'}
+              </button>
+
+              <button
+                onClick={handleExportCsv}
+                className="px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold flex items-center gap-1.5 transition-colors"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                Export CSV
+              </button>
+
+              <button
+                onClick={handleExportJson}
+                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+              >
+                <FileCode className="w-3.5 h-3.5" />
+                Export JSON
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* All Deals Pipeline List Section (Fetched via GET /workflow/deals) */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                Processed Credit Deals History
+                <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2.5 py-0.5 rounded-full border border-blue-200">
+                  GET /workflow/deals ({dealsList.length})
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Real-time deals fetched from the workflow pipeline backend API.
+              </p>
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search deals or IDs..."
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {isLoadingDeals ? (
+            <div className="py-12 text-center text-slate-500 space-y-2">
+              <Loader2 className="w-6 h-6 text-blue-600 animate-spin mx-auto" />
+              <p className="text-xs">Fetching deals from /workflow/deals API...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3">Deal ID</th>
+                    <th className="px-4 py-3">Borrower & Deal Name</th>
+                    <th className="px-4 py-3">Amount</th>
+                    <th className="px-4 py-3">File Name</th>
+                    <th className="px-4 py-3">Created Date</th>
+                    <th className="px-4 py-3 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 font-medium bg-white">
+                  {filteredDeals.map((deal) => (
+                    <tr key={deal.dealId} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-4 py-3.5 font-bold text-blue-600 font-mono">
+                        {deal.dealId}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="font-bold text-slate-900">{deal.borrowerName}</div>
+                        <div className="text-[11px] text-slate-500">{deal.dealName}</div>
+                      </td>
+                      <td className="px-4 py-3.5 font-bold text-slate-800">
+                        {deal.totalAmount || '$250,000,000 USD'}
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-600 max-w-[180px] truncate">
+                        {deal.fileName}
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-500 font-mono text-[11px]">
+                        {deal.createdAt}
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold px-2.5 py-1 rounded-full text-[10px] inline-flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          SIGNED OFF
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
