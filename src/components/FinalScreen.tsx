@@ -18,8 +18,20 @@ import {
   Loader2
 } from 'lucide-react';
 import { CreatedDealRecord } from '../types';
-import { MOCK_EXISTING_DEALS } from '../data/sampleDeal';
 import { DEFAULT_FILE_NAME, DEFAULT_DEAL_NAME, DEFAULT_AGREEMENT_DATE, DEFAULT_TOTAL_AMOUNT, ACTUAL_DEAL_1_EXTRACTION_DATA } from '../data/actualDeal_1';
+
+interface ApiDealRecord {
+  dealId: string;
+  dealName: string;
+  agreementDate: string;
+  branch: string;
+  classification: string;
+  currency: string;
+  departmentId: string;
+  expenseCode: string;
+  globalDealProposedCommitmentAmount: number;
+  processingAreaCode: string;
+}
 
 interface FinalScreenProps {
   dealResponse: any;
@@ -32,7 +44,7 @@ export const FinalScreen: React.FC<FinalScreenProps> = ({
   onNavigateUpload,
   onNavigateReview,
 }) => {
-  const [dealsList, setDealsList] = useState<CreatedDealRecord[]>([]);
+  const [dealsList, setDealsList] = useState<ApiDealRecord[]>([]);
   const [isLoadingDeals, setIsLoadingDeals] = useState<boolean>(true);
   const [copiedSummary, setCopiedSummary] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -61,27 +73,24 @@ export const FinalScreen: React.FC<FinalScreenProps> = ({
     const fetchAllDeals = async () => {
       setIsLoadingDeals(true);
       try {
-        let apiUrl = '/workflow/deals';
-        if (window.location.hostname === 'localhost' && window.location.port === '8080') {
-          apiUrl = 'http://localhost:8080/workflow/deals';
-        }
+        const apiUrl = 'http://localhost:8081/api/deals/all';
+        console.log('Fetching all deals from:', apiUrl);
 
-        let res: Response;
-        try {
-          res = await fetch(apiUrl);
-        } catch {
-          res = await fetch('/workflow/deals');
-        }
+        const res = await fetch(apiUrl);
+        console.log('Deals API response status:', res.status);
 
         if (res.ok) {
           const json = await res.json();
-          setDealsList(json.deals || MOCK_EXISTING_DEALS);
+          console.log('Deals API response:', json);
+          const records: ApiDealRecord[] = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+          setDealsList(records);
         } else {
-          setDealsList([currentDeal, ...MOCK_EXISTING_DEALS]);
+          console.warn('Deals API returned non-OK status, setting empty list');
+          setDealsList([]);
         }
       } catch (e) {
-        console.error('Error fetching deals list:', e);
-        setDealsList([currentDeal, ...MOCK_EXISTING_DEALS]);
+        console.error('Error fetching deals list from localhost:8081/api/deals/all:', e);
+        setDealsList([]);
       } finally {
         setIsLoadingDeals(false);
       }
@@ -132,10 +141,13 @@ Signed Off: ${currentDeal.createdAt}`;
   };
 
   const filteredDeals = dealsList.filter((d) => {
+    const q = searchQuery.toLowerCase();
     return (
-      d.borrowerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.dealId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.dealName.toLowerCase().includes(searchQuery.toLowerCase())
+      d.dealId?.toLowerCase().includes(q) ||
+      d.dealName?.toLowerCase().includes(q) ||
+      d.branch?.toLowerCase().includes(q) ||
+      d.classification?.toLowerCase().includes(q) ||
+      d.currency?.toLowerCase().includes(q)
     );
   });
 
@@ -245,7 +257,7 @@ Signed Off: ${currentDeal.createdAt}`;
               <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
                 Processed Credit Deals History
                 <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2.5 py-0.5 rounded-full border border-blue-200">
-                  GET /workflow/deals ({dealsList.length})
+                  ({dealsList.length})
                 </span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -268,7 +280,7 @@ Signed Off: ${currentDeal.createdAt}`;
           {isLoadingDeals ? (
             <div className="py-12 text-center text-slate-500 space-y-2">
               <Loader2 className="w-6 h-6 text-blue-600 animate-spin mx-auto" />
-              <p className="text-xs">Fetching deals from /workflow/deals API...</p>
+              <p className="text-xs">Fetching all deals</p>
             </div>
           ) : (
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -276,37 +288,55 @@ Signed Off: ${currentDeal.createdAt}`;
                 <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3">Deal ID</th>
-                    <th className="px-4 py-3">Borrower & Deal Name</th>
+                    <th className="px-4 py-3">Deal Name</th>
                     <th className="px-4 py-3">Amount</th>
-                    <th className="px-4 py-3">File Name</th>
-                    <th className="px-4 py-3">Created Date</th>
-                    <th className="px-4 py-3 text-right">Status</th>
+                    <th className="px-4 py-3">Currency</th>
+                    <th className="px-4 py-3">Branch</th>
+                    <th className="px-4 py-3">Classification</th>
+                    <th className="px-4 py-3">Agreement Date</th>
+                    <th className="px-4 py-3">Dept ID</th>
+                    <th className="px-4 py-3">Expense Code</th>
+                    <th className="px-4 py-3">Processing Area</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 font-medium bg-white">
-                  {filteredDeals.map((deal) => (
+                  {filteredDeals.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-4 py-8 text-center text-slate-400 text-xs">No deals found.</td>
+                    </tr>
+                  ) : filteredDeals.map((deal) => (
                     <tr key={deal.dealId} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-4 py-3.5 font-bold text-blue-600 font-mono">
+                      <td className="px-4 py-3.5 font-bold text-blue-600 font-mono whitespace-nowrap">
                         {deal.dealId}
                       </td>
+                      <td className="px-4 py-3.5 font-bold text-slate-900 whitespace-nowrap">
+                        {deal.dealName}
+                      </td>
+                      <td className="px-4 py-3.5 font-bold text-slate-800 whitespace-nowrap">
+                        {deal.globalDealProposedCommitmentAmount?.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-700 font-mono font-bold">
+                        {deal.currency}
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-600">
+                        {deal.branch}
+                      </td>
                       <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-900">{deal.borrowerName}</div>
-                        <div className="text-[11px] text-slate-500">{deal.dealName}</div>
+                        <span className="bg-slate-100 border border-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase tracking-wide">
+                          {deal.classification?.replace(/_/g, ' ')}
+                        </span>
                       </td>
-                      <td className="px-4 py-3.5 font-bold text-slate-800">
-                        {deal.totalAmount || DEFAULT_TOTAL_AMOUNT}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600 max-w-[180px] truncate">
-                        {deal.fileName}
+                      <td className="px-4 py-3.5 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                        {deal.agreementDate}
                       </td>
                       <td className="px-4 py-3.5 text-slate-500 font-mono text-[11px]">
-                        {deal.createdAt}
+                        {deal.departmentId}
                       </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold px-2.5 py-1 rounded-full text-[10px] inline-flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          SIGNED OFF
-                        </span>
+                      <td className="px-4 py-3.5 text-slate-500 font-mono text-[11px]">
+                        {deal.expenseCode}
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-500 font-mono text-[11px]">
+                        {deal.processingAreaCode}
                       </td>
                     </tr>
                   ))}
