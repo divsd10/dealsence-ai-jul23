@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileText, Sparkles, CheckCircle2, ArrowLeft, RefreshCw, PlusCircle } from 'lucide-react';
-import { DEFAULT_FILE_NAME, DEFAULT_DEAL_NAME, ACTUAL_DEAL_1_EXTRACTION_DATA } from '../data/actualDeal_1';
+import { DEFAULT_DEAL_NAME, ACTUAL_DEAL_1_EXTRACTION_DATA } from '../data/actualDeal_1';
 
 interface HeaderProps {
   currentScreen: 'upload' | 'review' | 'final';
@@ -15,7 +15,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   currentScreen,
-  fileName = DEFAULT_FILE_NAME,
+  fileName,
   pageCount = ACTUAL_DEAL_1_EXTRACTION_DATA.pageCount,
   borrowerName = ACTUAL_DEAL_1_EXTRACTION_DATA.borrowerName,
   reviewedCount = 0,
@@ -68,7 +68,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-900 text-sm">{fileName}</span>
+                <span className="font-bold text-slate-900 text-sm">{fileName || 'Uploaded Document.pdf'}</span>
                 <span className="bg-slate-100 text-slate-600 text-[11px] font-medium px-2 py-0.5 rounded border border-slate-200">
                   {pageCount} Pages
                 </span>

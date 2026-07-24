@@ -13,7 +13,7 @@ import {
 import { UploadResponse, WorkflowStatusResponse } from '../types';
 
 interface UploadScreenProps {
-  onWorkflowComplete: (uuid: string, fileData: { name: string; size: string }) => void;
+  onWorkflowComplete: (uuid: string, fileData: { name: string; size: string; pdfUrl?: string | null }) => void;
 }
 
 export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }) => {
@@ -27,6 +27,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
   const [workflowUuid, setWorkflowUuid] = useState<string | null>(null);
   const [currentStepInfo, setCurrentStepInfo] = useState<WorkflowStatusResponse | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pdfUrlRef = useRef<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -71,6 +72,10 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
   };
 
   const handleRemoveDocument = () => {
+    if (pdfUrlRef.current?.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfUrlRef.current);
+      pdfUrlRef.current = null;
+    }
     setSelectedFile(null);
     setSampleLoaded(false);
     setUploadError(null);
@@ -133,6 +138,11 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
       const activeUuid = uuid;
       setWorkflowUuid(activeUuid);
 
+      if (pdfUrlRef.current?.startsWith('blob:')) {
+        URL.revokeObjectURL(pdfUrlRef.current);
+      }
+      pdfUrlRef.current = selectedFile ? URL.createObjectURL(selectedFile) : null;
+
       // Start status polling
       startPollingStatus(activeUuid);
 
@@ -189,7 +199,8 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
             setTimeout(() => {
               onWorkflowComplete(uuid, {
                 name: selectedFile ? selectedFile.name : 'ABC_Manufacturing_Credit_Agreement_2025.pdf',
-                size: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : '3.32 MB'
+                size: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : '3.32 MB',
+                pdfUrl: pdfUrlRef.current
               });
             }, 800);
           }

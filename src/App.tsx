@@ -1,22 +1,37 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Header } from './components/Header';
 import { UploadScreen } from './components/UploadScreen';
 import { ReviewScreen } from './components/ReviewScreen';
 import { FinalScreen } from './components/FinalScreen';
-import { DEFAULT_FILE_NAME, ACTUAL_DEAL_1_EXTRACTION_DATA } from './data/actualDeal_1';
+import { ACTUAL_DEAL_1_EXTRACTION_DATA } from './data/actualDeal_1';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<'upload' | 'review' | 'final'>('upload');
   const [workflowUuid, setWorkflowUuid] = useState<string>('actual-deal-1-uuid-001');
   const [fileInfo, setFileInfo] = useState<{ name: string; size: string }>({
-    name: DEFAULT_FILE_NAME,
+    name: '',
     size: 'N/A'
   });
+  const [uploadedPdfUrl, setUploadedPdfUrl] = useState<string | null>(null);
   const [createDealResponse, setCreateDealResponse] = useState<any>(null);
 
-  const handleWorkflowComplete = (uuid: string, info: { name: string; size: string }) => {
+  useEffect(() => {
+    return () => {
+      if (uploadedPdfUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(uploadedPdfUrl);
+      }
+    };
+  }, [uploadedPdfUrl]);
+
+  const handleWorkflowComplete = (uuid: string, info: { name: string; size: string; pdfUrl?: string | null }) => {
     setWorkflowUuid(uuid);
     setFileInfo(info);
+    setUploadedPdfUrl((prev) => {
+      if (prev?.startsWith('blob:')) {
+        URL.revokeObjectURL(prev);
+      }
+      return info.pdfUrl ?? null;
+    });
     setCurrentScreen('review');
   };
 
@@ -46,6 +61,8 @@ export default function App() {
         {currentScreen === 'review' && (
           <ReviewScreen
             uuid={workflowUuid}
+            pdfUrl={uploadedPdfUrl}
+            fileName={fileInfo.name}
             onSignOffComplete={handleSignOffComplete}
           />
         )}
@@ -53,6 +70,7 @@ export default function App() {
         {currentScreen === 'final' && (
           <FinalScreen
             dealResponse={createDealResponse}
+            currentFileName={fileInfo.name}
             onNavigateUpload={() => setCurrentScreen('upload')}
             onNavigateReview={() => setCurrentScreen('review')}
           />

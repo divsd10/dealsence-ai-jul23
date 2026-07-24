@@ -18,7 +18,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { CreatedDealRecord } from '../types';
-import { DEFAULT_FILE_NAME, DEFAULT_DEAL_NAME, DEFAULT_AGREEMENT_DATE, DEFAULT_TOTAL_AMOUNT, ACTUAL_DEAL_1_EXTRACTION_DATA } from '../data/actualDeal_1';
+import { DEFAULT_DEAL_NAME, DEFAULT_AGREEMENT_DATE, DEFAULT_TOTAL_AMOUNT, ACTUAL_DEAL_1_EXTRACTION_DATA } from '../data/actualDeal_1';
 
 interface ApiDealRecord {
   dealId: string;
@@ -35,12 +35,14 @@ interface ApiDealRecord {
 
 interface FinalScreenProps {
   dealResponse: any;
+  currentFileName?: string;
   onNavigateUpload: () => void;
   onNavigateReview: () => void;
 }
 
 export const FinalScreen: React.FC<FinalScreenProps> = ({
   dealResponse,
+  currentFileName,
   onNavigateUpload,
   onNavigateReview,
 }) => {
@@ -54,7 +56,7 @@ export const FinalScreen: React.FC<FinalScreenProps> = ({
     uuid: 'actual-deal-1-uuid-001',
     borrowerName: ACTUAL_DEAL_1_EXTRACTION_DATA.borrowerName,
     dealName: DEFAULT_DEAL_NAME,
-    fileName: DEFAULT_FILE_NAME,
+    fileName: currentFileName || dealResponse?.fileName || ACTUAL_DEAL_1_EXTRACTION_DATA.fileName,
     effectiveDate: DEFAULT_AGREEMENT_DATE,
     totalAmount: DEFAULT_TOTAL_AMOUNT,
     createdAt: dealResponse?.timestamp || new Date().toLocaleString(),

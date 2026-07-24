@@ -24,10 +24,12 @@ import { mapRawApiToExtractionData } from '../data/mapApiResponse';
 
 interface ReviewScreenProps {
   uuid: string;
+  pdfUrl?: string | null;
+  fileName?: string;
   onSignOffComplete: (createDealResponse: any) => void;
 }
 
-export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffComplete }) => {
+export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, pdfUrl, fileName, onSignOffComplete }) => {
   const [data, setData] = useState<ExtractionData | null>(null);
   const [attributes, setAttributes] = useState<DealAttribute[]>([]);
   const [facilities, setFacilities] = useState<FacilityGroup[]>([]);
@@ -44,6 +46,11 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
   // Editing state
   const [editingAttrId, setEditingAttrId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
+
+  // Dropdown states for ProcessingArea, Department, Branch
+  const [processingArea, setProcessingArea] = useState<string>('');
+  const [department, setDepartment] = useState<string>('');
+  const [branch, setBranch] = useState<string>('');
 
   // Accordion open/close state for facilities (populated dynamically after data loads)
   const [openFacilities, setOpenFacilities] = useState<Record<string, boolean>>({});
@@ -191,6 +198,12 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
   const rejectedCount = allFieldsList.filter((a) => a.status === 'REJECTED').length;
   const pendingCount = allFieldsList.filter((a) => a.status === 'PENDING').length;
   const totalFields = allFieldsList.length;
+  const maxExtractedPage = allFieldsList.reduce((max, attr) => Math.max(max, attr.page || 1), 1);
+  const derivedPageCount = Math.max(data?.pageCount ?? 0, maxExtractedPage, 1);
+  const pageFieldCounts = Array.from({ length: derivedPageCount }, (_, idx) => {
+    const page = idx + 1;
+    return allFieldsList.filter((attr) => attr.page === page).length;
+  });
 
   const assignNestedValue = (target: Record<string, any>, path: string[], value: string) => {
     if (path.length === 0) return;
@@ -222,6 +235,9 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, onSignOffCompl
   // Create JSON in API-like structure, but only with key/value pairs.
   const createNameValuePairJson = () => {
     const jsonResult = buildObjectFromAttributes(attributes);
+    if (processingArea) jsonResult.processingAreaCode = processingArea;
+    if (department) jsonResult.department = department;
+    if (branch) jsonResult.branch = branch;
     jsonResult.facilityList = facilities.map((facility) => buildObjectFromAttributes(facility.attributes));
     return jsonResult;
   };
@@ -334,6 +350,10 @@ console.log('Sign-off JSON payload:', jsonPairs);
           <PdfViewer
             activePage={activePdfPage}
             activeAttribute={selectedAttribute}
+            pdfUrl={pdfUrl}
+            fileName={fileName ?? data?.fileName}
+            pageCount={derivedPageCount}
+            pageFieldCounts={pageFieldCounts}
             onPageChange={(p) => setActivePdfPage(p)}
           />
         </div>
@@ -661,6 +681,53 @@ console.log('Sign-off JSON payload:', jsonPairs);
                 })}
               </div>
             )}
+
+            {/* Dropdown Filters for ProcessingArea, Department, Branch */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+              <h3 className="font-bold text-slate-900 text-sm">Deal Metadata</h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Processing Area</label>
+                  <select
+                    value={processingArea}
+                    onChange={(e) => setProcessingArea(e.target.value)}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Select...</option>
+                    <option value="NY">NY</option>
+                    <option value="BNG">BNG</option>
+                    <option value="LDN">LDN</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Department</label>
+                  <select
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Select...</option>
+                    <option value="Corporate">Corporate</option>
+                    <option value="Retail">Retail</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Branch</label>
+                  <select
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Select...</option>
+                    <option value="New York">New York</option>
+                    <option value="Bengaluru">Bengaluru</option>
+                    <option value="London">London</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Bottom Sticky Toolbar */}
