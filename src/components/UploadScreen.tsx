@@ -10,7 +10,7 @@ import {
   Loader2,
   FileCheck
 } from 'lucide-react';
-import { UploadResponse, WorkflowStatusResponse } from '../types';
+import { WorkflowStatusResponse } from '../types';
 
 interface UploadScreenProps {
   onWorkflowComplete: (uuid: string, fileData: { name: string; size: string; pdfUrl?: string | null }) => void;
@@ -131,7 +131,9 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
       }
 
       if (!response.ok) {
-        throw new Error(`Upload failed with status ${response.status}`);
+        setUploadError(`Upload failed with status ${response.status}`);
+        setIsUploading(false);
+        return;
       }
 
       //const uploadData: UploadResponse = await response.json();
@@ -155,6 +157,45 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
 
   // 2. Poll /workflow/:uuid/status every 10 seconds
   const startPollingStatus = (uuid: string) => {
+    // Status mapping: description, percentage, step count
+    const statusMap: Record<string, { description: string; percentage: number; step: number }> = {
+      'UPLOADING': {
+        description: 'Uploading your credit agreement document to the secure processing engine...',
+        percentage: 20,
+        step: 1
+      },
+      'UPLOADING_COMPLETE': {
+        description: 'File uploaded successfully. Beginning OCR and document analysis...',
+        percentage: 25,
+        step: 1
+      },
+      'PARSED': {
+        description: 'AI is parsing the document structure and identifying key sections...',
+        percentage: 40,
+        step: 2
+      },
+      'EXTRACTED': {
+        description: 'Intelligent agent is extracting credit terms, rates, covenants, and facility details...',
+        percentage: 60,
+        step: 3
+      },
+      'VALIDATED': {
+        description: 'Validating extracted attributes against legal framework and data integrity rules...',
+        percentage: 80,
+        step: 4
+      },
+      'COMPLETED': {
+        description: 'Processing complete! Your deal attributes are ready for human review and sign-off.',
+        percentage: 100,
+        step: 5
+      },
+      'HUMAN APPROVED': {
+        description: 'Deal successfully approved and processed. Proceeding to review screen...',
+        percentage: 100,
+        step: 6
+      }
+    };
+
     const fetchStatus = async () => {
       try {
         let statusUrl = `/workflow/${uuid}/status`;
@@ -171,30 +212,41 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
 
         if (res.ok) {
           const rawStatus = await res.json() as {
+            uuid?: string;
+            status?: string;
             data?: {
               workflowId?: string;
               status?: string;
               username?: string;
               updatedAt?: string;
             };
-          } & Partial<WorkflowStatusResponse>;
+            userName?: string;
+            updatedAt?: string;
+          };
 
-          // Normalize both legacy flat responses and nested `{ data: ... }` responses.
-          const normalizedStatus: WorkflowStatusResponse = {
+          // Extract actual status from API (handle both nested and flat responses)
+          const actualStatus = (rawStatus.data?.status || rawStatus.status || 'UPLOADING') as string;
+          const statusInfo = statusMap[actualStatus] || {
+            description: 'Processing workflow...',
+            percentage: 50,
+            step: 2
+          };
+
+          const displayStatus: WorkflowStatusResponse = {
             uuid: rawStatus.uuid || rawStatus.data?.workflowId || uuid,
-            status: (rawStatus.data?.status || rawStatus.status || 'PROCESSING') as WorkflowStatusResponse['status'],
-            step: rawStatus.step ?? (rawStatus.data?.status === 'COMPLETED' ? 6 : 1),
-            totalSteps: rawStatus.totalSteps ?? 6,
-            message: rawStatus.message || rawStatus.data?.status || 'Processing workflow...',
-            percentage: rawStatus.percentage ?? (rawStatus.data?.status === 'COMPLETED' ? 100 : 15),
+            status: (actualStatus as any) || 'PROCESSING',
+            step: statusInfo.step,
+            totalSteps: 6,
+            message: statusInfo.description,
+            percentage: statusInfo.percentage,
             userName: rawStatus.userName || rawStatus.data?.username,
             updatedAt: rawStatus.updatedAt || rawStatus.data?.updatedAt,
           };
 
-          setCurrentStepInfo(normalizedStatus);
+          setCurrentStepInfo(displayStatus);
 
-          // Proceed when workflow reaches a terminal approval/completed state.
-          if (normalizedStatus.status === 'COMPLETED' || normalizedStatus.status === 'HUMAN APPROVED') {
+          // Proceed when workflow reaches terminal state
+          if (actualStatus === 'COMPLETED' || actualStatus === 'HUMAN APPROVED') {
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
             setTimeout(() => {
               onWorkflowComplete(uuid, {
@@ -213,7 +265,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
     // Initial fetch immediately
     fetchStatus();
 
-    // Set 10-second polling interval as requested in prompt
+    // Set 10-second polling interval
     pollTimerRef.current = setInterval(fetchStatus, 10000);
   };
 

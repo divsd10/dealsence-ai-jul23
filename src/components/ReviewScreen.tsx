@@ -684,7 +684,7 @@ console.log('Sign-off JSON payload:', jsonPairs);
 
             {/* Dropdown Filters for ProcessingArea, Department, Branch */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-              <h3 className="font-bold text-slate-900 text-sm">Deal Metadata</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Deal Operational Details</h3>
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-slate-700">Processing Area</label>
