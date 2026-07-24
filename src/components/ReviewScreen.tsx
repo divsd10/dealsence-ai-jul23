@@ -246,6 +246,12 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ uuid, pdfUrl, fileNa
   const handleSignOffAndCreate = async () => {
     setIsSubmitting(true);
     const jsonPairs = createNameValuePairJson();
+    // Snapshot counts at submit time so FinalScreen always reflects the latest review decision state.
+    const submitAllFields = [...attributes, ...facilities.flatMap((f) => f.attributes)];
+    const submitApprovedCount = submitAllFields.filter((a) => a.status === 'APPROVED').length;
+    const submitRejectedCount = submitAllFields.filter((a) => a.status === 'REJECTED').length;
+    const submitPendingCount = submitAllFields.filter((a) => a.status === 'PENDING').length;
+    const submitTotalFields = submitAllFields.length;
 console.log('Sign-off JSON payload:', jsonPairs);
     try {
       let createUrl = '/api/deals/create';
@@ -281,7 +287,17 @@ console.log('Sign-off JSON payload:', jsonPairs);
 
       if (res.ok) {
         const createResponse = await res.json();
-        onSignOffComplete(createResponse);
+        const normalizedResponse = {
+          ...createResponse,
+          deal: {
+            ...(createResponse?.deal ?? {}),
+            totalFields: submitTotalFields,
+            approvedFields: submitApprovedCount,
+            rejectedFields: submitRejectedCount,
+            pendingFields: submitPendingCount,
+          },
+        };
+        onSignOffComplete(normalizedResponse);
       } else {
         throw new Error('Failed to create deal via API');
       }
@@ -302,10 +318,10 @@ console.log('Sign-off JSON payload:', jsonPairs);
           effectiveDate: jsonPairs.agreementDate ?? jsonPairs.effectiveDate ?? 'N/A',
           totalAmount: jsonPairs.globalDealProposedCommitmentAmount ?? jsonPairs.totalAggregateAmount ?? 'N/A',
           createdAt: new Date().toLocaleString(),
-          totalFields,
-          approvedFields: approvedCount,
-          rejectedFields: rejectedCount,
-          pendingFields: pendingCount,
+          totalFields: submitTotalFields,
+          approvedFields: submitApprovedCount,
+          rejectedFields: submitRejectedCount,
+          pendingFields: submitPendingCount,
           status: 'SIGNED_OFF',
           attributes: Object.fromEntries(
             Object.entries(jsonPairs).filter(([key]) => key !== 'facilityList') as Array<[string, string]>

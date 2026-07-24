@@ -32,18 +32,11 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <span className="font-extrabold tracking-wider text-lg bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-              DEALSENSE.AI
+              BUILD IQ
             </span>
             <span className="bg-slate-800/90 text-blue-400 text-xs font-semibold px-2.5 py-0.5 rounded-md border border-slate-700">
               v1.0 Enterprise
             </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 text-xs text-slate-300">
-          <div className="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-full border border-slate-800">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>API Engine Online</span>
           </div>
         </div>
       </header>

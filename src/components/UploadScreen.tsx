@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Upload,
+  CloudUpload,
   FileText,
   Sparkles,
   ShieldCheck,
@@ -246,7 +247,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
           setCurrentStepInfo(displayStatus);
 
           // Proceed when workflow reaches terminal state
-          if (actualStatus === 'COMPLETED' || actualStatus === 'HUMAN APPROVED') {
+          if (actualStatus === 'COMPLETED' || actualStatus === 'HUMAN_REVIEW_PENDING') {
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
             setTimeout(() => {
               onWorkflowComplete(uuid, {
@@ -340,9 +341,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
                           e.stopPropagation();
                           fileInputRef.current?.click();
                         }}
-                        className="px-5 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-xs transition-colors"
+                        className="group inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white border border-sky-200 text-sky-700 font-semibold text-xs shadow-lg shadow-sky-200/60 transition-all duration-300 hover:-translate-y-0.5 hover:bg-sky-50 hover:shadow-xl hover:shadow-sky-200/70 active:translate-y-0 active:scale-98"
                     >
-                      Browse Files
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-700 transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-0.5">
+                        <CloudUpload className="w-3.5 h-3.5 animate-pulse" />
+                      </span>
+                      <span className="tracking-wide">Browse Files</span>
                     </button>
                   </div>
 
@@ -398,7 +402,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ onWorkflowComplete }
                               className="px-4 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
                           >
                             <FileCheck className="w-4 h-4" />
-                            Load Sample Credit Agreement
+                            Load Credit Agreement
                           </button>
                         </div>
                     )}
